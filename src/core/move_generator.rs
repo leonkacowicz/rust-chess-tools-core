@@ -458,6 +458,41 @@ mod tests {
         assert_eq!(performance_test(&board, 5, true), 193690690);
     }
 
+    #[test]
+    pub fn perft_3() {
+        let fen = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
+        let board = board_from_fen(fen).unwrap();
+
+        assert_eq!(performance_test(&board, 1, true), 14);
+        assert_eq!(performance_test(&board, 2, true), 191);
+        assert_eq!(performance_test(&board, 3, true), 2812);
+        assert_eq!(performance_test(&board, 4, true), 43238);
+        assert_eq!(performance_test(&board, 5, true), 674624);
+    }
+
+    #[test]
+    pub fn perft_4() {
+        let fen = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
+        let b = board_from_fen(fen).unwrap();
+
+        assert_eq!(performance_test(&b, 1, true), 6);
+        assert_eq!(performance_test(&b, 2, true), 264);
+        assert_eq!(performance_test(&b, 3, true), 9467);
+        assert_eq!(performance_test(&b, 4, true), 422333);
+        assert_eq!(performance_test(&b, 5, true), 15833292);
+    }
+
+    #[test]
+    pub fn perft_5() {
+        let fen = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+        let b = board_from_fen(fen).unwrap();
+        assert_eq!(performance_test(&b, 1, true), 44);
+        assert_eq!(performance_test(&b, 2, true), 1486);
+        assert_eq!(performance_test(&b, 3, true), 62379);
+        assert_eq!(performance_test(&b, 4, true), 2103487);
+        assert_eq!(performance_test(&b, 5, true), 89941194);
+    }
+
     // #[test]
     // pub fn perft_a2a4() {
     //     let mut board = Board::from_initial_position();

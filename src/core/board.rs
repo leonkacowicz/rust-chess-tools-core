@@ -295,9 +295,18 @@ impl Board {
     fn promote(&mut self, origin: Square, dest: Square, piece: Piece) {
         let origin_bb = BitBoard::from_square(origin);
         let dest_bb = BitBoard::from_square(dest);
+        let dest_bbi = !dest_bb;
         self.piece_of_color[self.side_to_play as usize] ^= origin_bb | dest_bb;
         self.piece_of_type[PAWN as usize] ^= origin_bb;
-        self.piece_of_type[piece as usize] ^= dest_bb;
+
+        self.piece_of_color[self.side_to_play.opposite() as usize] &= dest_bbi;
+        self.piece_of_type[1] &= dest_bbi;
+        self.piece_of_type[2] &= dest_bbi;
+        self.piece_of_type[3] &= dest_bbi;
+        self.piece_of_type[4] &= dest_bbi;
+
+        self.piece_of_type[piece as usize] |= dest_bb;
+
         self.half_move_counter = 0;
     }
 
@@ -343,11 +352,13 @@ impl Board {
 
     pub fn check_consistency(&self) -> bool {
         if self.piece_of_color[0] * self.piece_of_color[1] {
+            eprintln!("inconsistent colors");
             return false;
         }
         let mut accum = self.piece_of_type[0];
         for i in 1..5 {
             if accum * self.piece_of_type[i] {
+                eprintln!("inconsistent pieces {}", i);
                 return false;
             }
             accum |= self.piece_of_type[i]
