@@ -436,7 +436,7 @@ mod tests {
     pub fn perft() {
         let board = Board::from_initial_position();
         let mt: &MagicTables = &MAGIC_TABLES;
-        let dummy = mt.bishop_table.attacks_empty(SQ_A1);
+        let _dummy = mt.bishop_table.attacks_empty(SQ_A1);
         let start = std::time::Instant::now();
         assert_eq!(performance_test(&board, 1, true), 20);
         assert_eq!(performance_test(&board, 2, true), 400);
@@ -445,7 +445,6 @@ mod tests {
         assert_eq!(performance_test(&board, 5, true), 4865609);
         assert_eq!(performance_test(&board, 6, true), 119060324);
         eprintln!("{}", start.elapsed().as_millis());
-        println!("{}", dummy);
     }
 
     #[test]

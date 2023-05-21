@@ -174,21 +174,11 @@ impl Board {
                 dest,
                 piece,
             } => self.promote(origin, dest, piece),
-            // Move::PromotionQueen { origin, dest } => self.promote(origin, dest, QUEEN),
-            // Move::PromotionRook { origin, dest } => self.promote(origin, dest, ROOK),
-            // Move::PromotionBishop { origin, dest } => self.promote(origin, dest, BISHOP),
-            // Move::PromotionKnight { origin, dest } => self.promote(origin, dest, KNIGHT),
             Move::NormalMove {
                 origin,
                 dest,
                 piece,
             } => self.make_normal_move(origin, dest, piece),
-            Move::Capture {
-                origin,
-                dest,
-                piece,
-                capture,
-            } => self.make_capture(origin, dest, piece, capture),
             Move::EnPassant {
                 origin,
                 dest,
@@ -218,47 +208,38 @@ impl Board {
                 self.half_move_counter = 0;
             }
         }
-        self.update_king_pos_castling_rights(dest, piece, both_squares);
-        if piece == PAWN {
-            if origin.rank() == 1 && dest.rank() == 3 {
-                self.en_passant = Some(Square::from_coords(origin.file(), origin.rank() + 1));
-            } else if origin.rank() == 6 && dest.rank() == 4 {
-                self.en_passant = Some(Square::from_coords(origin.file(), origin.rank() - 1));
-            }
-            self.half_move_counter = 0;
-        }
-    }
 
-    fn make_capture(&mut self, origin: Square, dest: Square, piece: Piece, capture: Piece) {
-        let origin_bb = BitBoard::from_square(origin);
-        let dest_bb = BitBoard::from(dest);
-        let both_squares = origin_bb | dest_bb;
-        self.piece_of_color[self.side_to_play as usize] ^= both_squares;
-        self.piece_of_color[self.side_to_play.opposite() as usize] ^= dest_bb;
-        self.piece_of_type[capture as usize] ^= dest_bb;
-        self.update_king_pos_castling_rights(dest, piece, both_squares);
-        self.half_move_counter = 0;
-    }
-
-    fn update_king_pos_castling_rights(
-        &mut self,
-        dest: Square,
-        piece: Piece,
-        both_squares: BitBoard,
-    ) {
         if piece == KING {
             self.can_castle_king_side[self.side_to_play as usize] = false;
             self.can_castle_queen_side[self.side_to_play as usize] = false;
             self.king_pos[self.side_to_play as usize] = dest;
         } else {
             self.piece_of_type[piece as usize] ^= both_squares;
+            self.update_castling_rights(both_squares);
+            if piece == PAWN {
+                if origin.rank() == 1 && dest.rank() == 3 {
+                    self.en_passant = Some(Square::from_coords(origin.file(), origin.rank() + 1));
+                } else if origin.rank() == 6 && dest.rank() == 4 {
+                    self.en_passant = Some(Square::from_coords(origin.file(), origin.rank() - 1));
+                }
+                self.half_move_counter = 0;
+            }
+        }
+    }
+
+    #[inline]
+    fn update_castling_rights(&mut self, both_squares: BitBoard) {
+        if both_squares * (BB_A1 | BB_H1 | BB_A8 | BB_H8) {
             if both_squares * BB_A1 {
                 self.can_castle_queen_side[WHITE as usize] = false;
-            } else if both_squares * BB_H1 {
+            }
+            if both_squares * BB_H1 {
                 self.can_castle_king_side[WHITE as usize] = false;
-            } else if both_squares * BB_A8 {
+            }
+            if both_squares * BB_A8 {
                 self.can_castle_queen_side[BLACK as usize] = false;
-            } else if both_squares * BB_H8 {
+            }
+            if both_squares * BB_H8 {
                 self.can_castle_king_side[BLACK as usize] = false;
             }
         }

@@ -10,12 +10,6 @@ pub enum Move {
         dest: Square,
         piece: Piece,
     },
-    Capture {
-        origin: Square,
-        dest: Square,
-        piece: Piece,
-        capture: Piece,
-    },
     CastleKingSideWhite,
     CastleQueenSideWhite,
     CastleKingSideBlack,
@@ -25,22 +19,6 @@ pub enum Move {
         dest: Square,
         piece: Piece,
     },
-    // PromotionQueen {
-    //     origin: Square,
-    //     dest: Square,
-    // },
-    // PromotionRook {
-    //     origin: Square,
-    //     dest: Square,
-    // },
-    // PromotionBishop {
-    //     origin: Square,
-    //     dest: Square,
-    // },
-    // PromotionKnight {
-    //     origin: Square,
-    //     dest: Square,
-    // },
     EnPassant {
         origin: Square,
         dest: Square,
@@ -72,21 +50,11 @@ impl Move {
             capture,
         }
     }
-
-    pub const fn capture(piece: Piece, origin: Square, dest: Square, capture: Piece) -> Move {
-        Capture {
-            origin,
-            dest,
-            piece,
-            capture,
-        }
-    }
 }
 impl Display for Move {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             NormalMove { origin, dest, .. } => f.write_fmt(format_args!("{}{}", origin, dest)),
-            Capture { origin, dest, .. } => f.write_fmt(format_args!("{}{}", origin, dest)),
             EnPassant { origin, dest, .. } => f.write_fmt(format_args!("{}{}", origin, dest)),
             CastleKingSideWhite => f.write_str("e1g1"),
             CastleQueenSideWhite => f.write_str("e1c1"),
