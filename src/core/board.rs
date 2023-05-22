@@ -1,16 +1,11 @@
 use crate::core::bitboard::BitBoard;
-use crate::core::bitboard_attacks::{king_attacks, knight_attacks, pawn_attacks};
-use crate::core::bitboard_constants::{
-    BB_A1, BB_A8, BB_C1, BB_C8, BB_D1, BB_D8, BB_E1, BB_E8, BB_F1, BB_F8, BB_G1, BB_G8, BB_H1,
-    BB_H8, FILE_A, FILE_B, FILE_C, FILE_D, FILE_F, FILE_G, FILE_H, RANK_1, RANK_2, RANK_7, RANK_8,
-};
+use crate::core::bitboard_attacks::*;
+use crate::core::bitboard_constants::*;
 use crate::core::magic_bitboard::MagicTables;
 use crate::core::r#move::Move;
 use crate::core::square::Square;
 use crate::core::square_constants::*;
-use crate::core::Color::{BLACK, WHITE};
-use crate::core::Piece::{BISHOP, KING, KNIGHT, PAWN, QUEEN, ROOK};
-use crate::core::{Color, Piece};
+use crate::core::*;
 use std::fmt::{Display, Formatter};
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -65,7 +60,7 @@ impl Board {
     }
 
     pub fn set_king_pos(&mut self, color: Color, square: Square) -> Result<(), ()> {
-        if self.king_pos[color.opposite() as usize] == square {
+        if self.king_pos[color.opposite()] == square {
             return Err(());
         }
         let square_bb = BitBoard::from(square);
@@ -153,9 +148,9 @@ impl Board {
         }
     }
     pub fn color_at(&self, square_bb: BitBoard) -> Option<Color> {
-        if self.piece_of_color[WHITE as usize] * square_bb {
+        if self.piece_of_color[WHITE] * square_bb {
             Some(WHITE)
-        } else if self.piece_of_color[BLACK as usize] * square_bb {
+        } else if self.piece_of_color[BLACK] * square_bb {
             Some(BLACK)
         } else {
             None
@@ -196,23 +191,23 @@ impl Board {
         debug_assert_eq!(Some(piece), self.piece_at(origin_bb));
 
         let both_squares = origin_bb | dest_bb;
-        self.piece_of_color[self.side_to_play as usize] ^= both_squares;
+        self.piece_of_color[self.side_to_play] ^= both_squares;
 
         match self.piece_at(dest_bb) {
             None => {
                 self.half_move_counter += 1;
             }
             Some(piece) => {
-                self.piece_of_color[self.side_to_play.opposite() as usize] &= dest_bb_i;
+                self.piece_of_color[self.side_to_play.opposite()] &= dest_bb_i;
                 self.piece_of_type[piece as usize] &= dest_bb_i;
                 self.half_move_counter = 0;
             }
         }
 
         if piece == KING {
-            self.can_castle_king_side[self.side_to_play as usize] = false;
-            self.can_castle_queen_side[self.side_to_play as usize] = false;
-            self.king_pos[self.side_to_play as usize] = dest;
+            self.can_castle_king_side[self.side_to_play] = false;
+            self.can_castle_queen_side[self.side_to_play] = false;
+            self.king_pos[self.side_to_play] = dest;
         } else {
             self.piece_of_type[piece as usize] ^= both_squares;
             self.update_castling_rights(both_squares);
@@ -231,16 +226,16 @@ impl Board {
     fn update_castling_rights(&mut self, both_squares: BitBoard) {
         if both_squares * (BB_A1 | BB_H1 | BB_A8 | BB_H8) {
             if both_squares * BB_A1 {
-                self.can_castle_queen_side[WHITE as usize] = false;
+                self.can_castle_queen_side[WHITE] = false;
             }
             if both_squares * BB_H1 {
-                self.can_castle_king_side[WHITE as usize] = false;
+                self.can_castle_king_side[WHITE] = false;
             }
             if both_squares * BB_A8 {
-                self.can_castle_queen_side[BLACK as usize] = false;
+                self.can_castle_queen_side[BLACK] = false;
             }
             if both_squares * BB_H8 {
-                self.can_castle_king_side[BLACK as usize] = false;
+                self.can_castle_king_side[BLACK] = false;
             }
         }
     }
@@ -250,45 +245,45 @@ impl Board {
         let dest_bb = BitBoard::from(dest);
         let both_squares = origin_bb | dest_bb;
         let capture_bb = BitBoard::from_square(capture);
-        self.piece_of_color[self.side_to_play as usize] ^= both_squares;
+        self.piece_of_color[self.side_to_play] ^= both_squares;
         self.piece_of_type[PAWN as usize] ^= both_squares | capture_bb;
-        self.piece_of_color[self.side_to_play.opposite() as usize] ^= capture_bb;
+        self.piece_of_color[self.side_to_play.opposite()] ^= capture_bb;
         self.half_move_counter = 0;
     }
 
     fn castle_king_side_white_fast(&mut self) {
-        self.king_pos[WHITE as usize] = SQ_G1;
-        self.piece_of_color[WHITE as usize] ^= BB_E1 | BB_F1 | BB_G1 | BB_H1;
+        self.king_pos[WHITE] = SQ_G1;
+        self.piece_of_color[WHITE] ^= BB_E1 | BB_F1 | BB_G1 | BB_H1;
         self.piece_of_type[ROOK as usize] ^= BB_F1 | BB_H1;
-        self.can_castle_king_side[WHITE as usize] = false;
-        self.can_castle_queen_side[WHITE as usize] = false;
+        self.can_castle_king_side[WHITE] = false;
+        self.can_castle_queen_side[WHITE] = false;
         self.half_move_counter += 1;
     }
 
     fn castle_queen_side_white_fast(&mut self) {
-        self.king_pos[WHITE as usize] = SQ_C1;
-        self.piece_of_color[WHITE as usize] ^= BB_A1 | BB_C1 | BB_D1 | BB_E1;
+        self.king_pos[WHITE] = SQ_C1;
+        self.piece_of_color[WHITE] ^= BB_A1 | BB_C1 | BB_D1 | BB_E1;
         self.piece_of_type[ROOK as usize] ^= BB_D1 | BB_A1;
-        self.can_castle_king_side[WHITE as usize] = false;
-        self.can_castle_queen_side[WHITE as usize] = false;
+        self.can_castle_king_side[WHITE] = false;
+        self.can_castle_queen_side[WHITE] = false;
         self.half_move_counter += 1;
     }
 
     fn castle_king_side_black_fast(&mut self) {
-        self.king_pos[BLACK as usize] = SQ_G8;
-        self.piece_of_color[BLACK as usize] ^= BB_E8 | BB_F8 | BB_G8 | BB_H8;
+        self.king_pos[BLACK] = SQ_G8;
+        self.piece_of_color[BLACK] ^= BB_E8 | BB_F8 | BB_G8 | BB_H8;
         self.piece_of_type[ROOK as usize] ^= BB_F8 | BB_H8;
-        self.can_castle_king_side[BLACK as usize] = false;
-        self.can_castle_queen_side[BLACK as usize] = false;
+        self.can_castle_king_side[BLACK] = false;
+        self.can_castle_queen_side[BLACK] = false;
         self.half_move_counter += 1;
     }
 
     fn castle_queen_side_black_fast(&mut self) {
-        self.king_pos[BLACK as usize] = SQ_C8;
-        self.piece_of_color[BLACK as usize] ^= BB_A8 | BB_C8 | BB_D8 | BB_E8;
+        self.king_pos[BLACK] = SQ_C8;
+        self.piece_of_color[BLACK] ^= BB_A8 | BB_C8 | BB_D8 | BB_E8;
         self.piece_of_type[ROOK as usize] ^= BB_D8 | BB_A8;
-        self.can_castle_king_side[BLACK as usize] = false;
-        self.can_castle_queen_side[BLACK as usize] = false;
+        self.can_castle_king_side[BLACK] = false;
+        self.can_castle_queen_side[BLACK] = false;
         self.half_move_counter += 1;
     }
 
@@ -297,10 +292,10 @@ impl Board {
         let dest_bb = BitBoard::from_square(dest);
         let dest_bbi = !dest_bb;
         let both_squares = origin_bb | dest_bb;
-        self.piece_of_color[self.side_to_play as usize] ^= both_squares;
+        self.piece_of_color[self.side_to_play] ^= both_squares;
         self.piece_of_type[PAWN as usize] ^= origin_bb;
 
-        self.piece_of_color[self.side_to_play.opposite() as usize] &= dest_bbi;
+        self.piece_of_color[self.side_to_play.opposite()] &= dest_bbi;
         self.piece_of_type[1] &= dest_bbi;
         self.piece_of_type[2] &= dest_bbi;
         self.piece_of_type[3] &= dest_bbi;
@@ -330,11 +325,11 @@ impl Board {
         let bishop_mt = &magic_tables.bishop_table;
         let enemy_piece = self.piece_of_color(color.opposite());
         let king = self.king_pos[color as usize];
-        let enemy_king = self.king_pos[color.opposite() as usize];
+        let enemy_king = self.king_pos[color.opposite()];
         let any_piece = self.piece_of_color[0] | self.piece_of_color[1];
         let rook_or_queen = self.piece_of_type(ROOK) | self.piece_of_type(QUEEN);
         let bishop_or_queen = self.piece_of_type(BISHOP) | self.piece_of_type(QUEEN);
-        if !(knight_attacks(king) & enemy_piece & self.piece_of_type(KNIGHT)).empty() {
+        if !(KNIGHT_ATTACKS[king] & enemy_piece & self.piece_of_type(KNIGHT)).empty() {
             return true;
         }
         if !(pawn_attacks(color, king) & enemy_piece & self.piece_of_type(PAWN)).empty() {
@@ -375,7 +370,7 @@ impl Display for Board {
             f.write_fmt(format_args!("\n {}  ", y + 1))?;
             for x in 0..=7 as i32 {
                 let bb: BitBoard = BitBoard::from_coords(x as u8, y as u8);
-                if bb * self.piece_of_color[WHITE as usize] {
+                if bb * self.piece_of_color[WHITE] {
                     if bb * self.piece_of_type[BISHOP as usize] {
                         f.write_str(" ♗")?;
                     } else if bb * self.piece_of_type[ROOK as usize] {
@@ -386,12 +381,12 @@ impl Display for Board {
                         f.write_str(" ♕")?;
                     } else if bb * self.piece_of_type[PAWN as usize] {
                         f.write_str(" ♙")?;
-                    } else if bb * BitBoard::from_square(self.king_pos[WHITE as usize]) {
+                    } else if bb * BitBoard::from_square(self.king_pos[WHITE]) {
                         f.write_str(" ♔")?;
                     } else {
                         f.write_str(" X")?;
                     }
-                } else if bb * self.piece_of_color[BLACK as usize] {
+                } else if bb * self.piece_of_color[BLACK] {
                     if bb * self.piece_of_type[BISHOP as usize] {
                         f.write_str(" ♝")?;
                     } else if bb * self.piece_of_type[ROOK as usize] {
@@ -402,7 +397,7 @@ impl Display for Board {
                         f.write_str(" ♛")?;
                     } else if bb * self.piece_of_type[PAWN as usize] {
                         f.write_str(" ♟")?;
-                    } else if bb * BitBoard::from_square(self.king_pos[BLACK as usize]) {
+                    } else if bb * BitBoard::from_square(self.king_pos[BLACK]) {
                         f.write_str(" ♚")?;
                     } else {
                         f.write_str(" x")?;

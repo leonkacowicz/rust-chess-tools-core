@@ -27,10 +27,10 @@ pub enum Move {
     NullMove,
 }
 impl Move {
-    pub const fn new(piece: Piece, from: Square, to: Square) -> Move {
+    pub const fn new(piece: Piece, origin: Square, dest: Square) -> Move {
         NormalMove {
-            origin: from,
-            dest: to,
+            origin,
+            dest,
             piece,
         }
     }

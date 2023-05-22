@@ -1,7 +1,7 @@
 use self::Color::*;
 use crate::core::Piece::*;
 use std::fmt::{Display, Formatter, Write};
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 pub mod bitboard;
 mod bitboard_attacks;
@@ -104,18 +104,32 @@ impl Into<usize> for Color {
 impl<T> Index<Piece> for [T; 6] {
     type Output = T;
 
-    #[inline]
+    #[inline(always)]
     fn index(&self, index: Piece) -> &Self::Output {
         &self[index as usize]
+    }
+}
+
+impl<T> IndexMut<Color> for [T; 2] {
+    #[inline(always)]
+    fn index_mut(&mut self, index: Color) -> &mut Self::Output {
+        &mut self[index as usize]
     }
 }
 
 impl<T> Index<Color> for [T; 2] {
     type Output = T;
 
-    #[inline]
+    #[inline(always)]
     fn index(&self, index: Color) -> &Self::Output {
         &self[index as usize]
+    }
+}
+
+impl<T> IndexMut<Piece> for [T; 6] {
+    #[inline(always)]
+    fn index_mut(&mut self, index: Piece) -> &mut Self::Output {
+        &mut self[index as usize]
     }
 }
 

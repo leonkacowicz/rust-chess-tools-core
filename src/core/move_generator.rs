@@ -1,5 +1,5 @@
 use crate::core::bitboard::BitBoard;
-use crate::core::bitboard_attacks::{king_attacks, knight_attacks, pawn_attacks};
+use crate::core::bitboard_attacks::*;
 use crate::core::bitboard_constants::*;
 use crate::core::board::Board;
 use crate::core::magic_bitboard::*;
@@ -25,11 +25,13 @@ macro_rules! if_ndebug {
     ($args:expr) => {};
 }
 
+#[allow(unused_macros)]
 #[cfg(not(debug_assertions))]
 macro_rules! if_debug {
     ($args:expr) => {};
 }
 
+#[allow(unused_macros)]
 #[cfg(not(debug_assertions))]
 macro_rules! if_ndebug {
     ($args:expr) => {
@@ -69,11 +71,9 @@ impl MoveGenerator<'_> {
             enemy_piece,
             any_piece: our_piece | enemy_piece,
             block_mask: BitBoard::EMPTY,
-            king: BitBoard::from_square(board.king_pos[board.side_to_play as usize]),
-            king_sq: board.king_pos[board.side_to_play as usize],
-            other_king: BitBoard::from_square(
-                board.king_pos[board.side_to_play.opposite() as usize],
-            ),
+            king: BitBoard::from_square(board.king_pos[board.side_to_play]),
+            king_sq: board.king_pos[board.side_to_play],
+            other_king: BitBoard::from_square(board.king_pos[board.side_to_play.opposite()]),
             pinned: BitBoard::EMPTY,
             rook_queen: board.piece_of_type(ROOK) | board.piece_of_type(QUEEN),
             bishop_queen: board.piece_of_type(BISHOP) | board.piece_of_type(QUEEN),
@@ -98,6 +98,7 @@ impl MoveGenerator<'_> {
         &self.moves
     }
 
+    #[inline]
     fn scan_board(&mut self) {
         let (rook_checkers, bishop_checkers) = self.update_checkers();
         self.update_block_mask(rook_checkers);
@@ -131,34 +132,35 @@ impl MoveGenerator<'_> {
         (rook_checkers, bishop_checkers)
     }
 
-    #[inline]
+    #[inline(always)]
     fn update_block_mask(&mut self, checkers: BitBoard) {
         let mut remaining = checkers;
         while !remaining.empty() {
-            self.block_mask |= line_segment(self.king_sq, remaining.pop_lsb());
+            self.block_mask |= LINE_SEGMENT[self.king_sq][remaining.pop_lsb()];
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn update_pins(&mut self, ray: BitBoard, attackers: BitBoard) {
         let mut remaining = self.enemy_piece & attackers & ray;
         while !remaining.empty() {
             let square = remaining.pop_lsb();
-            let path = ray & line_segment(self.king_sq, square) & self.any_piece;
+            let path = ray & LINE_SEGMENT[self.king_sq][square] & self.any_piece;
             if path.num_squares() == 1 {
                 self.pinned |= path;
             }
         }
     }
 
+    #[inline]
     fn square_attacked(&self, sq: Square) -> bool {
         let enemy = self.enemy_piece;
-        let any_piece = self.any_piece;
-        !(knight_attacks(sq) & enemy & self.board.piece_of_type(KNIGHT)).empty()
-            || !(pawn_attacks(self.us, sq) & enemy & self.board.piece_of_type(PAWN)).empty()
-            || !(king_attacks(sq) & self.other_king).empty()
-            || !(self.rook_attacks(sq, any_piece ^ self.king) & enemy & self.rook_queen).empty()
-            || !(self.bishop_attacks(sq, any_piece ^ self.king) & enemy & self.bishop_queen).empty()
+        let occupancy = self.any_piece ^ self.king;
+        KNIGHT_ATTACKS[sq] * (enemy & self.board.piece_of_type(KNIGHT))
+            || PAWN_ATTACKS[self.us][sq] * (enemy & self.board.piece_of_type(PAWN))
+            || KING_ATTACKS[sq].intersects(self.other_king)
+            || self.rook_attacks(sq, occupancy) * (enemy & self.rook_queen)
+            || self.bishop_attacks(sq, occupancy) * (enemy & self.bishop_queen)
     }
 
     #[inline]
@@ -222,28 +224,20 @@ impl MoveGenerator<'_> {
     #[inline]
     fn generate_castles(&mut self) {
         if self.us == WHITE {
-            if self.board.can_castle_king_side[WHITE as usize] {
+            if self.board.can_castle_king_side[WHITE] {
                 self.generate_castles_move(BB_F1 | BB_G1, SQ_F1, SQ_G1, Move::CastleKingSideWhite);
             }
-            if self.board.can_castle_queen_side[WHITE as usize] {
-                self.generate_castles_move(
-                    BB_D1 | BB_C1 | BB_B1,
-                    SQ_D1,
-                    SQ_C1,
-                    Move::CastleQueenSideWhite,
-                );
+            if self.board.can_castle_queen_side[WHITE] {
+                let path = BB_D1 | BB_C1 | BB_B1;
+                self.generate_castles_move(path, SQ_D1, SQ_C1, Move::CastleQueenSideWhite);
             }
         } else {
-            if self.board.can_castle_king_side[BLACK as usize] {
+            if self.board.can_castle_king_side[BLACK] {
                 self.generate_castles_move(BB_F8 | BB_G8, SQ_F8, SQ_G8, Move::CastleKingSideBlack);
             }
-            if self.board.can_castle_queen_side[BLACK as usize] {
-                self.generate_castles_move(
-                    BB_D8 | BB_C8 | BB_B8,
-                    SQ_D8,
-                    SQ_C8,
-                    Move::CastleQueenSideBlack,
-                );
+            if self.board.can_castle_queen_side[BLACK] {
+                let path = BB_D8 | BB_C8 | BB_B8;
+                self.generate_castles_move(path, SQ_D8, SQ_C8, Move::CastleQueenSideBlack);
             }
         }
     }
@@ -258,30 +252,19 @@ impl MoveGenerator<'_> {
     }
 
     #[inline]
-    fn generate_slider_moves(&mut self, origin_sq: Square, piece: Piece, attacks: BitBoard) {
+    fn generate_slider_moves(&mut self, origin: Square, piece: Piece, attacks: BitBoard) {
         let mut attacks = attacks;
         attacks -= self.our_piece;
         if self.evasive {
             // remove squares that don't block the checker or capture it
             attacks &= self.checkers | self.block_mask;
         }
-        if self.pinned * origin_sq {
+        if self.pinned * origin {
             // if piece is pinned, it can only move away from or towards the king, but not any other direction
-            attacks &= line(origin_sq, self.king_sq);
+            attacks &= LINE[origin][self.king_sq];
         }
         while !attacks.empty() {
-            let dest = attacks.pop_lsb();
-            // let dest_bb = BitBoard::from_square(dest);
-            // if self.enemy_piece * dest_bb {
-            //     self.moves.push(Move::capture(
-            //         piece,
-            //         origin_sq,
-            //         dest,
-            //         self.board.piece_at(dest_bb).unwrap(),
-            //     ))
-            // } else {
-            self.moves.push(Move::new(piece, origin_sq, dest));
-            // }
+            self.moves.push(Move::new(piece, origin, attacks.pop_lsb()));
         }
     }
     fn generate_knight_moves(&mut self, origin: Square) {
@@ -295,41 +278,24 @@ impl MoveGenerator<'_> {
 
         while !attacks.empty() {
             let dest = attacks.pop_lsb();
-            // let dest_bb = BitBoard::from_square(dest);
-            // if self.enemy_piece * dest_bb {
-            //     self.moves.push(Move::capture(
-            //         KNIGHT,
-            //         origin,
-            //         dest,
-            //         self.board.piece_at(dest_bb).unwrap(),
-            //     ));
-            // } else {
             self.moves.push(Move::new(KNIGHT, origin, dest));
-            // }
         }
     }
     fn generate_pawn_moves(&mut self, origin: Square, origin_bb: BitBoard) {
         let fwd_dir = self.us.fwd_dir();
         let dest = origin.shift(fwd_dir);
         let fwd = BitBoard::from_square(dest);
-        let promotion = (RANK_1 | RANK_8) * fwd;
-        let first_move = !promotion && (RANK_2 | RANK_7) * origin_bb;
+        let is_promotion = (RANK_1 | RANK_8) * fwd;
+        let first_move = !is_promotion && (RANK_2 | RANK_7) * origin_bb;
         let is_not_pinned = !self.pinned.intersects(origin_bb);
-        if (!self.any_piece * fwd) && (is_not_pinned || line(origin, dest).intersects(self.king)) {
+        if (!self.any_piece * fwd) && (is_not_pinned || LINE[origin][dest] * (self.king)) {
             // pawn can move forward if
             // 1. there's no piece in the destination square
             // 2. Either:
             //      - it is not pinned
             //      - it is pinned but it is moving towards or away from the king in a line (will continue pinned)
             if !self.evasive || self.block_mask * fwd {
-                if promotion {
-                    self.moves.push(Move::promote(origin, dest, QUEEN));
-                    self.moves.push(Move::promote(origin, dest, ROOK));
-                    self.moves.push(Move::promote(origin, dest, BISHOP));
-                    self.moves.push(Move::promote(origin, dest, KNIGHT));
-                } else {
-                    self.moves.push(Move::new(PAWN, origin, dest));
-                }
+                self.add_pawn_moves(origin, dest, is_promotion);
             }
             if first_move {
                 let fwd2 = fwd.shift(fwd_dir);
@@ -343,15 +309,27 @@ impl MoveGenerator<'_> {
         }
         if origin.file() > 0 {
             let capture = dest.shift(LEFT);
-            if is_not_pinned || line(origin, capture).intersects(self.king) {
-                self.generate_pawn_captures(promotion, origin, capture);
+            if is_not_pinned || LINE[origin][capture].intersects(self.king) {
+                self.generate_pawn_captures(is_promotion, origin, capture);
             }
         }
         if origin.file() < 7 {
             let capture = dest.shift(RIGHT);
-            if is_not_pinned || line(origin, capture).intersects(self.king) {
-                self.generate_pawn_captures(promotion, origin, capture);
+            if is_not_pinned || LINE[origin][capture].intersects(self.king) {
+                self.generate_pawn_captures(is_promotion, origin, capture);
             }
+        }
+    }
+
+    #[inline(always)]
+    fn add_pawn_moves(&mut self, origin: Square, dest: Square, is_promotion: bool) {
+        if is_promotion {
+            self.moves.push(Move::promote(origin, dest, QUEEN));
+            self.moves.push(Move::promote(origin, dest, ROOK));
+            self.moves.push(Move::promote(origin, dest, BISHOP));
+            self.moves.push(Move::promote(origin, dest, KNIGHT));
+        } else {
+            self.moves.push(Move::new(PAWN, origin, dest));
         }
     }
 
@@ -359,16 +337,7 @@ impl MoveGenerator<'_> {
         let dest_bb = BitBoard::from_square(dest);
         if self.enemy_piece * dest_bb {
             if !self.evasive || self.checkers * dest_bb {
-                if is_promotion {
-                    self.moves.push(Move::promote(origin, dest, QUEEN));
-                    self.moves.push(Move::promote(origin, dest, ROOK));
-                    self.moves.push(Move::promote(origin, dest, BISHOP));
-                    self.moves.push(Move::promote(origin, dest, KNIGHT));
-                } else {
-                    // let capture = self.board.piece_at(dest_bb).unwrap();
-                    // self.moves.push(Move::capture(PAWN, origin, dest, capture));
-                    self.moves.push(Move::new(PAWN, origin, dest));
-                }
+                self.add_pawn_moves(origin, dest, is_promotion);
             }
         } else if let Some(en_passant) = self.board.en_passant {
             if en_passant == dest {

@@ -23,6 +23,11 @@ impl BitBoard {
     }
 
     #[inline]
+    pub const fn intersects2(self, other: BitBoard, other2: BitBoard) -> bool {
+        self.intersection(other).intersection(other2).0 != 0
+    }
+
+    #[inline]
     pub const fn intersection(self, other: BitBoard) -> BitBoard {
         BitBoard(self.0 & other.0)
     }
@@ -46,14 +51,14 @@ impl BitBoard {
         BitBoardIterator(self)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn pop_lsb(&mut self) -> Square {
         let sq = Square(self.0.trailing_zeros() as u8);
         self.0 &= self.0 - 1;
         return sq;
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn from_coords(file: u8, rank: u8) -> BitBoard {
         BitBoard((1 as u64) << (8 * rank + file))
     }
@@ -61,22 +66,6 @@ impl BitBoard {
     #[inline]
     pub const fn from_square(square: Square) -> BitBoard {
         BitBoard(1 << square.0)
-    }
-
-    pub fn clear_square(&mut self, square: &Square) {
-        self.0 &= !(1 << square.0);
-    }
-
-    pub fn set_square(&mut self, square: &Square) {
-        self.0 |= 1 << square.0;
-    }
-
-    pub fn in_place_and(&mut self, other: BitBoard) {
-        self.0 &= other.0;
-    }
-
-    pub fn in_place_or(&mut self, other: BitBoard) {
-        self.0 |= other.0
     }
 }
 
@@ -249,6 +238,7 @@ mod tests {
     use crate::core::bitboard::BitBoard;
     use crate::core::bitboard_constants::{FILE, RANK};
     use crate::core::square::Square;
+    use rand::{RngCore, SeedableRng};
 
     #[test]
     pub fn test_struct_size() {
@@ -275,6 +265,26 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    pub fn perf_test_mul() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        for _i in 0..3000000 {
+            let bb1 = BitBoard(rng.next_u64());
+            let bb2 = BitBoard(rng.next_u64());
+            assert_eq!(bb1 * bb2, bb1.0 & bb2.0 != 0);
+        }
+    }
+
+    #[test]
+    pub fn perf_test_intersects() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        for _i in 0..3000000 {
+            let bb1 = BitBoard(rng.next_u64());
+            let bb2 = BitBoard(rng.next_u64());
+            assert_eq!(bb1.intersects(bb2), bb1.0 & bb2.0 != 0);
         }
     }
 }
