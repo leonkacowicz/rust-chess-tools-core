@@ -286,10 +286,10 @@ impl MoveGenerator<'_> {
     fn generate_pawn_moves(&mut self, origin: Square, origin_bb: BitBoard) {
         let fwd_dir = self.us.fwd_dir();
         let dest = origin.shift(fwd_dir);
-        let fwd = BitBoard::from_square(dest);
+        let fwd = origin_bb.shift(fwd_dir);
         let is_promotion = (RANK_1 | RANK_8) * fwd;
         let first_move = !is_promotion && (RANK_2 | RANK_7) * origin_bb;
-        let is_not_pinned = !self.pinned.intersects(origin_bb);
+        let is_not_pinned = !(self.pinned * origin_bb);
         if (!self.any_piece * fwd) && (is_not_pinned || LINE[origin][dest] * (self.king)) {
             // pawn can move forward if
             // 1. there's no piece in the destination square
@@ -301,21 +301,19 @@ impl MoveGenerator<'_> {
             }
             if first_move {
                 let fwd2 = fwd.shift(fwd_dir);
-                if !fwd2.intersects(self.any_piece)
-                    && (!self.evasive || self.block_mask.intersects(fwd2))
-                {
+                if !(fwd2 * self.any_piece) && (!self.evasive || self.block_mask * fwd2) {
                     self.moves
                         .push(Move::new(PAWN, origin, dest.shift(fwd_dir)))
                 }
             }
         }
-        if origin.file() > 0 {
+        if origin_bb * FILE_A_I {
             let capture = dest.shift(LEFT);
             if is_not_pinned || LINE[origin][capture].intersects(self.king) {
                 self.generate_pawn_captures(is_promotion, origin, capture);
             }
         }
-        if origin.file() < 7 {
+        if origin_bb * FILE_H_I {
             let capture = dest.shift(RIGHT);
             if is_not_pinned || LINE[origin][capture].intersects(self.king) {
                 self.generate_pawn_captures(is_promotion, origin, capture);

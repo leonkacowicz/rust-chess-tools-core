@@ -323,8 +323,8 @@ impl Board {
     pub fn under_check(&self, color: Color, magic_tables: &MagicTables) -> bool {
         let rook_mt = &magic_tables.rook_table;
         let bishop_mt = &magic_tables.bishop_table;
-        let enemy_piece = self.piece_of_color(color.opposite());
-        let king = self.king_pos[color as usize];
+        let enemy_piece = self.piece_of_color[color.opposite()];
+        let king = self.king_pos[color];
         let enemy_king = self.king_pos[color.opposite()];
         let any_piece = self.piece_of_color[0] | self.piece_of_color[1];
         let rook_or_queen = self.piece_of_type(ROOK) | self.piece_of_type(QUEEN);
