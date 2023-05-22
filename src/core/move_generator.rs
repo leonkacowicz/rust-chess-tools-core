@@ -177,24 +177,26 @@ impl MoveGenerator<'_> {
     #[inline]
     fn generate_non_king_moves(&mut self) {
         let mut remaining;
-        let our_pieces = self.board.piece_of_color(self.us);
+        let our_pieces = self.board.piece_of_color[self.us];
+        let occupancy = self.any_piece;
+
         remaining = self.board.piece_of_type(ROOK) & our_pieces;
         while !remaining.empty() {
-            let sq = remaining.pop_lsb();
-            self.generate_slider_moves(sq, ROOK, self.rook_attacks(sq, self.any_piece));
+            let origin = remaining.pop_lsb();
+            self.generate_slider_moves(origin, ROOK, self.rook_attacks(origin, occupancy));
         }
 
         remaining = self.board.piece_of_type(BISHOP) & our_pieces;
         while !remaining.empty() {
-            let sq = remaining.pop_lsb();
-            self.generate_slider_moves(sq, BISHOP, self.bishop_attacks(sq, self.any_piece));
+            let origin = remaining.pop_lsb();
+            self.generate_slider_moves(origin, BISHOP, self.bishop_attacks(origin, occupancy));
         }
 
         remaining = self.board.piece_of_type(QUEEN) & our_pieces;
         while !remaining.empty() {
-            let sq = remaining.pop_lsb();
-            self.generate_slider_moves(sq, QUEEN, self.rook_attacks(sq, self.any_piece));
-            self.generate_slider_moves(sq, QUEEN, self.bishop_attacks(sq, self.any_piece));
+            let origin = remaining.pop_lsb();
+            self.generate_slider_moves(origin, QUEEN, self.rook_attacks(origin, occupancy));
+            self.generate_slider_moves(origin, QUEEN, self.bishop_attacks(origin, occupancy));
         }
 
         remaining = self.board.piece_of_type(PAWN) & our_pieces;
@@ -206,8 +208,8 @@ impl MoveGenerator<'_> {
 
         remaining = self.board.piece_of_type(KNIGHT) & our_pieces & !self.pinned;
         while !remaining.empty() {
-            let sq = remaining.pop_lsb();
-            self.generate_knight_moves(sq);
+            let origin = remaining.pop_lsb();
+            self.generate_knight_moves(origin);
         }
     }
 
@@ -341,7 +343,7 @@ impl MoveGenerator<'_> {
             }
         } else if let Some(en_passant) = self.board.en_passant {
             if en_passant == dest {
-                let capture = Square::from_coords(dest.file(), origin.rank());
+                let capture = Square(dest.file() | (origin.0 & 0xF8));
                 if self.evasive || self.king_sq.rank() == origin.rank() {
                     let mut board = self.board.clone();
                     let en_passant = Move::en_passant(origin, dest, capture);

@@ -63,7 +63,7 @@ impl BitBoard {
         BitBoard((1 as u64) << (8 * rank + file))
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn from_square(square: Square) -> BitBoard {
         BitBoard(1 << square.0)
     }

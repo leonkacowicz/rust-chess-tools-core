@@ -150,7 +150,7 @@ impl MagicTable {
             square_magics: [SquareMagic::new(); 64],
         }
     }
-    #[inline]
+    #[inline(always)]
     const fn get_table_index(&self, origin: Square, occupancy: BitBoard) -> usize {
         let square_index = origin.0 as usize;
         let magic = &self.square_magics[square_index];
@@ -158,11 +158,12 @@ impl MagicTable {
             + ((occupancy.0 & magic.attack_mask.0).wrapping_mul(magic.magic_number) >> magic.shift)
                 as usize
     }
-    #[inline]
+    #[inline(always)]
     pub fn attacks(&self, origin: Square, occupancy: BitBoard) -> BitBoard {
         self.attack_table[self.get_table_index(origin, occupancy)]
     }
 
+    #[inline(always)]
     pub fn attacks_empty(&self, origin: Square) -> BitBoard {
         let square_index = origin.0 as usize;
         let magic = &self.square_magics[square_index];

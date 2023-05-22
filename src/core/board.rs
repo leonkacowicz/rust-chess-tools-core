@@ -187,7 +187,6 @@ impl Board {
     fn make_normal_move(&mut self, origin: Square, dest: Square, piece: Piece) {
         let origin_bb = BitBoard::from_square(origin);
         let dest_bb = BitBoard::from(dest);
-        let dest_bb_i = !dest_bb;
         debug_assert_eq!(Some(piece), self.piece_at(origin_bb));
 
         let both_squares = origin_bb | dest_bb;
@@ -198,8 +197,8 @@ impl Board {
                 self.half_move_counter += 1;
             }
             Some(piece) => {
-                self.piece_of_color[self.side_to_play.opposite()] &= dest_bb_i;
-                self.piece_of_type[piece as usize] &= dest_bb_i;
+                self.piece_of_color[self.side_to_play.opposite()] ^= dest_bb;
+                self.piece_of_type[piece as usize] ^= dest_bb;
                 self.half_move_counter = 0;
             }
         }
@@ -212,10 +211,10 @@ impl Board {
             self.piece_of_type[piece as usize] ^= both_squares;
             self.update_castling_rights(both_squares);
             if piece == PAWN {
-                if origin.rank() == 1 && dest.rank() == 3 {
-                    self.en_passant = Some(Square::from_coords(origin.file(), origin.rank() + 1));
-                } else if origin.rank() == 6 && dest.rank() == 4 {
-                    self.en_passant = Some(Square::from_coords(origin.file(), origin.rank() - 1));
+                if origin_bb * RANK_2 && dest_bb * RANK_4 {
+                    self.en_passant = Some(origin.shift(UP));
+                } else if origin_bb * RANK_7 && dest_bb * RANK_5 {
+                    self.en_passant = Some(origin.shift(DOWN));
                 }
                 self.half_move_counter = 0;
             }
@@ -224,7 +223,8 @@ impl Board {
 
     #[inline]
     fn update_castling_rights(&mut self, both_squares: BitBoard) {
-        if both_squares * (BB_A1 | BB_H1 | BB_A8 | BB_H8) {
+        const CORNERS: BitBoard = BitBoard(BB_A1.0 | BB_H1.0 | BB_A8.0 | BB_H8.0);
+        if both_squares * CORNERS {
             if both_squares * BB_A1 {
                 self.can_castle_queen_side[WHITE] = false;
             }
