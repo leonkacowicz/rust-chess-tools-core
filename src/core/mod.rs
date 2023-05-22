@@ -1,6 +1,8 @@
 use self::Color::*;
 use crate::core::Piece::*;
 use std::fmt::{Display, Formatter, Write};
+use std::ops::Index;
+
 pub mod bitboard;
 mod bitboard_attacks;
 pub mod bitboard_constants;
@@ -12,6 +14,7 @@ pub mod r#move;
 pub mod move_generator;
 pub mod square;
 pub mod square_constants;
+pub mod zobrist_hash;
 
 pub const UP: i8 = 8;
 pub const DOWN: i8 = -8;
@@ -69,9 +72,8 @@ pub enum Color {
 
 impl Color {
     pub const fn opposite(self) -> Color {
-        match self {
-            BLACK => WHITE,
-            WHITE => BLACK,
+        unsafe {
+            return std::mem::transmute::<u8, Color>((self as u8) ^ 1);
         }
     }
 
@@ -96,6 +98,24 @@ impl Into<usize> for Color {
             WHITE => 0,
             BLACK => 1,
         }
+    }
+}
+
+impl<T> Index<Piece> for [T; 6] {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: Piece) -> &Self::Output {
+        &self[index as usize]
+    }
+}
+
+impl<T> Index<Color> for [T; 2] {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: Color) -> &Self::Output {
+        &self[index as usize]
     }
 }
 

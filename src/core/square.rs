@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter, Write};
+use std::ops::Index;
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct Square(pub(crate) u8);
@@ -59,6 +60,14 @@ impl From<&str> for Square {
             value.as_bytes()[0] - 'a' as u8,
             value.as_bytes()[1] - '1' as u8,
         )
+    }
+}
+impl<T> Index<Square> for [T; 64] {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: Square) -> &Self::Output {
+        &self[index.0 as usize]
     }
 }
 
