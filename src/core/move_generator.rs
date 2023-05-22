@@ -10,20 +10,31 @@ use crate::core::*;
 
 // Disable warnings
 
-#[allow(unused_macros)]
 // // The debug version
-// #[cfg(debug_assertions)]
-// macro_rules! if_debug {
-//     ($args:expr) => {
-//         $args
-//     };
-// }
-//
-// // Non-debug version
-//
-// #[cfg(not(debug_assertions))]
+#[allow(unused_macros)]
+#[cfg(debug_assertions)]
+macro_rules! if_debug {
+    ($args:expr) => {
+        $args
+    };
+}
+
+#[allow(unused_macros)]
+#[cfg(debug_assertions)]
+macro_rules! if_ndebug {
+    ($args:expr) => {};
+}
+
+#[cfg(not(debug_assertions))]
 macro_rules! if_debug {
     ($args:expr) => {};
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! if_ndebug {
+    ($args:expr) => {
+        $args
+    };
 }
 
 pub struct MoveGenerator<'a> {
@@ -73,7 +84,6 @@ impl MoveGenerator<'_> {
 
     pub fn generate(&mut self) -> &Vec<Move> {
         self.scan_board();
-        if_debug!(println!("{}", self.block_mask));
         self.generate_king_moves();
         let num_checkers = self.checkers.num_squares();
         if num_checkers == 2 {
@@ -156,18 +166,8 @@ impl MoveGenerator<'_> {
         let mut attacks = king_attacks(self.king_sq) & !self.our_piece;
         while !attacks.empty() {
             let sq = attacks.pop_lsb();
-            // let bb = BitBoard::from_square(sq);
             if !self.square_attacked(sq) {
-                // if self.enemy_piece * sq {
-                //     self.moves.push(Move::capture(
-                //         KING,
-                //         self.king_sq,
-                //         sq,
-                //         self.board.piece_at(bb).unwrap(),
-                //     ));
-                // } else {
                 self.moves.push(Move::new(KING, self.king_sq, sq));
-                // }
             }
         }
     }
@@ -222,21 +222,37 @@ impl MoveGenerator<'_> {
     #[inline]
     fn generate_castles(&mut self) {
         if self.us == WHITE {
-            self.generate_castles_move(BB_F1 | BB_G1, SQ_F1, SQ_G1, Move::CastleKingSideWhite);
-            self.generate_castles_move(BB_D1 | BB_C1, SQ_D1, SQ_C1, Move::CastleQueenSideWhite);
+            if self.board.can_castle_king_side[WHITE as usize] {
+                self.generate_castles_move(BB_F1 | BB_G1, SQ_F1, SQ_G1, Move::CastleKingSideWhite);
+            }
+            if self.board.can_castle_queen_side[WHITE as usize] {
+                self.generate_castles_move(
+                    BB_D1 | BB_C1 | BB_B1,
+                    SQ_D1,
+                    SQ_C1,
+                    Move::CastleQueenSideWhite,
+                );
+            }
         } else {
-            self.generate_castles_move(BB_F8 | BB_G8, SQ_F8, SQ_G8, Move::CastleKingSideBlack);
-            self.generate_castles_move(BB_D8 | BB_C8, SQ_D8, SQ_C8, Move::CastleQueenSideBlack);
+            if self.board.can_castle_king_side[BLACK as usize] {
+                self.generate_castles_move(BB_F8 | BB_G8, SQ_F8, SQ_G8, Move::CastleKingSideBlack);
+            }
+            if self.board.can_castle_queen_side[BLACK as usize] {
+                self.generate_castles_move(
+                    BB_D8 | BB_C8 | BB_B8,
+                    SQ_D8,
+                    SQ_C8,
+                    Move::CastleQueenSideBlack,
+                );
+            }
         }
     }
 
     #[inline]
     fn generate_castles_move(&mut self, path: BitBoard, sq1: Square, sq2: Square, m: Move) {
-        if self.board.can_castle_queen_side[self.us as usize] {
-            if !self.any_piece.intersects(path) {
-                if !self.square_attacked(sq1) && !self.square_attacked(sq2) {
-                    self.moves.push(m);
-                }
+        if !self.any_piece.intersects(path) {
+            if !self.square_attacked(sq1) && !self.square_attacked(sq2) {
+                self.moves.push(m);
             }
         }
     }
@@ -375,7 +391,6 @@ impl MoveGenerator<'_> {
 #[cfg(test)]
 mod tests {
     use crate::core::board::Board;
-    use crate::core::fen;
     use crate::core::fen::board_from_fen;
     use crate::core::magic_bitboard::*;
     use crate::core::move_generator::MoveGenerator;
@@ -395,7 +410,11 @@ mod tests {
 
     fn performance_test_rec(board: &Board, depth: i32, mt: &MagicTables, log: bool) -> usize {
         let mut generator = MoveGenerator::new(board, &mt);
-        let moves = generator.generate();
+        generator.generate();
+        let mut moves = generator.moves;
+        if_debug!(if log {
+            moves.sort_by(|a, b| a.to_string().cmp(&b.to_string()));
+        });
         if depth == 1 && !log {
             return moves.len();
         }
@@ -405,7 +424,7 @@ mod tests {
         let mut n = 0;
         for m in moves {
             let mut new_board = board.clone();
-            new_board.make_move(*m);
+            new_board.make_move(m);
             debug_assert!(
                 new_board.check_consistency(),
                 "consistency failed!\n{}, {:?}\n{}\n{}",
@@ -730,6 +749,68 @@ mod tests {
     //         24
     //     );
     // }
+
+    #[test]
+    pub fn perft_2_c3b1() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let mut board = board_from_fen(fen).unwrap();
+        board.make_move(Move::new(KNIGHT, SQ_C3, SQ_B1));
+
+        println!("{}", board);
+        assert_eq!(performance_test(&board, 2, true), 2038);
+    }
+
+    #[test]
+    pub fn perft_2_c3b1_a6b5() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let mut board = board_from_fen(fen).unwrap();
+        board.make_move(Move::new(KNIGHT, SQ_C3, SQ_B1));
+        board.make_move(Move::new(BISHOP, SQ_A6, SQ_B5));
+        println!("{}", board);
+        assert_eq!(performance_test(&board, 1, true), 48);
+    }
+
+    #[test]
+    pub fn perft_2_a1b1() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let mut board = board_from_fen(fen).unwrap();
+        board.make_move(Move::new(ROOK, SQ_A1, SQ_B1));
+        println!("{}", board);
+        assert_eq!(performance_test(&board, 4, true), 3827454);
+    }
+
+    #[test]
+    pub fn perft_2_a1b1_h3g2() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let mut board = board_from_fen(fen).unwrap();
+        board.make_move(Move::new(ROOK, SQ_A1, SQ_B1));
+        board.make_move(Move::new(PAWN, SQ_H3, SQ_G2));
+        println!("{}", board);
+        assert_eq!(performance_test(&board, 3, true), 94098);
+    }
+
+    #[test]
+    pub fn perft_2_a1b1_h3g2_a2a3() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let mut board = board_from_fen(fen).unwrap();
+        board.make_move(Move::new(ROOK, SQ_A1, SQ_B1));
+        board.make_move(Move::new(PAWN, SQ_H3, SQ_G2));
+        board.make_move(Move::new(PAWN, SQ_A2, SQ_A3));
+        println!("{}", board);
+        assert_eq!(performance_test(&board, 2, true), 2201);
+    }
+
+    #[test]
+    pub fn perft_2_a1b1_h3g2_a2a3_() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let mut board = board_from_fen(fen).unwrap();
+        board.make_move(Move::new(ROOK, SQ_A1, SQ_B1));
+        board.make_move(Move::new(PAWN, SQ_H3, SQ_G2));
+        board.make_move(Move::new(PAWN, SQ_A2, SQ_A3));
+        board.make_move(Move::promote(SQ_G2, SQ_H1, BISHOP));
+        println!("{}", board);
+        assert_eq!(performance_test(&board, 1, true), 45);
+    }
 
     #[test]
     pub fn test_en_passant_1() {

@@ -296,7 +296,8 @@ impl Board {
         let origin_bb = BitBoard::from_square(origin);
         let dest_bb = BitBoard::from_square(dest);
         let dest_bbi = !dest_bb;
-        self.piece_of_color[self.side_to_play as usize] ^= origin_bb | dest_bb;
+        let both_squares = origin_bb | dest_bb;
+        self.piece_of_color[self.side_to_play as usize] ^= both_squares;
         self.piece_of_type[PAWN as usize] ^= origin_bb;
 
         self.piece_of_color[self.side_to_play.opposite() as usize] &= dest_bbi;
@@ -307,6 +308,7 @@ impl Board {
 
         self.piece_of_type[piece as usize] |= dest_bb;
 
+        self.update_castling_rights(both_squares);
         self.half_move_counter = 0;
     }
 
