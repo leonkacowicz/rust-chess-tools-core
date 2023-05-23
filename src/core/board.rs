@@ -203,13 +203,14 @@ impl Board {
             }
         }
 
+        self.update_castling_rights(both_squares);
         if piece == KING {
             self.can_castle_king_side[self.side_to_play] = false;
             self.can_castle_queen_side[self.side_to_play] = false;
             self.king_pos[self.side_to_play] = dest;
         } else {
             self.piece_of_type[piece as usize] ^= both_squares;
-            self.update_castling_rights(both_squares);
+
             if piece == PAWN {
                 if origin_bb * RANK_2 && dest_bb * RANK_4 {
                     self.en_passant = Some(origin.shift(UP));
