@@ -1,11 +1,8 @@
 use crate::core::bitboard::*;
-use crate::core::bitboard_constants::{
-    FILE, FILE_A_I, FILE_A_I_RANK_1_I, FILE_A_I_RANK_8_I, FILE_H_I, FILE_H_I_RANK_1_I,
-    FILE_H_I_RANK_8_I, RANK, RANK_1_I, RANK_8_I,
-};
-use crate::core::magic_bitboard_magic_numbers::{BISHOP_MAGIC_NUMBERS, ROOK_MAGIC_NUMBERS};
+use crate::core::bitboard_constants::*;
+use crate::core::magic_bitboard_magic_numbers::*;
 use crate::core::square::Square;
-use crate::core::{DOWN, DOWN_LEFT, DOWN_RIGHT, LEFT, RIGHT, UP, UP_LEFT, UP_RIGHT};
+use crate::core::*;
 
 fn partitions(attack_mask: BitBoard) -> Vec<BitBoard> {
     let mut ans = vec![BitBoard::EMPTY; 1 << attack_mask.num_squares()];
@@ -43,7 +40,7 @@ fn bishop_occupancies() -> Vec<Vec<BitBoard>> {
         let rank = RANK[sq.rank() as usize];
         let file = FILE[sq.file() as usize];
         let range = ((RANK_8_I & RANK_1_I) | rank) & ((FILE_A_I & FILE_H_I) | file);
-        let attack_mask = bishop_attacks(origin, BitBoard::EMPTY) & range - sq;
+        let attack_mask = calc_bishop_attacks(origin, BitBoard::EMPTY) & range - sq;
         ans[i as usize] = partitions(attack_mask);
     }
     ans
@@ -99,7 +96,7 @@ const fn shift_attacks_down_right(origin: BitBoard, occupancy: BitBoard) -> BitB
     shift_attacks(origin, FILE_H_I_RANK_1_I, occupancy, DOWN_RIGHT)
 }
 
-const fn rook_attacks(origin: BitBoard, occupancy: BitBoard) -> BitBoard {
+const fn calc_rook_attacks(origin: BitBoard, occupancy: BitBoard) -> BitBoard {
     BitBoard(
         shift_attacks_up(origin, occupancy).0
             | shift_attacks_down(origin, occupancy).0
@@ -108,7 +105,7 @@ const fn rook_attacks(origin: BitBoard, occupancy: BitBoard) -> BitBoard {
     )
 }
 
-const fn bishop_attacks(origin: BitBoard, occupancy: BitBoard) -> BitBoard {
+const fn calc_bishop_attacks(origin: BitBoard, occupancy: BitBoard) -> BitBoard {
     BitBoard(
         shift_attacks_up_left(origin, occupancy).0
             | shift_attacks_up_right(origin, occupancy).0
@@ -117,8 +114,8 @@ const fn bishop_attacks(origin: BitBoard, occupancy: BitBoard) -> BitBoard {
     )
 }
 
-#[derive(Copy, Clone)]
-struct SquareMagic {
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct SquareMagic {
     attack_table_start: usize,
     attack_mask: BitBoard,
     magic_number: u64,
@@ -134,10 +131,25 @@ impl SquareMagic {
             shift: 0,
         }
     }
+
+    pub const fn with(
+        attack_table_start: usize,
+        attack_mask: u64,
+        magic_number: u64,
+        shift: i32,
+    ) -> SquareMagic {
+        SquareMagic {
+            attack_table_start,
+            attack_mask: BitBoard(attack_mask),
+            magic_number,
+            shift,
+        }
+    }
 }
 
 pub const ATTACK_TABLE_SIZE: usize = 262144;
 
+#[derive(Debug)]
 pub struct MagicTable {
     attack_table: Vec<BitBoard>,
     square_magics: [SquareMagic; 64],
@@ -176,7 +188,7 @@ fn calc_all_rook_attacks(occupancies: &Vec<Vec<BitBoard>>) -> Vec<Vec<BitBoard>>
     for (i, origin) in BitBoard::FULL.iter().enumerate() {
         ans[i] = vec![BitBoard::EMPTY; occupancies[i].len()];
         for (j, occupancy) in occupancies[i].iter().enumerate() {
-            ans[i][j] = rook_attacks(origin, *occupancy);
+            ans[i][j] = calc_rook_attacks(origin, *occupancy);
         }
     }
     ans
@@ -187,7 +199,7 @@ fn calc_all_bishop_attacks(occupancies: &Vec<Vec<BitBoard>>) -> Vec<Vec<BitBoard
     for (i, origin) in BitBoard::FULL.iter().enumerate() {
         ans[i] = vec![BitBoard::EMPTY; occupancies[i].len()];
         for (j, occupancy) in occupancies[i].iter().enumerate() {
-            ans[i][j] = bishop_attacks(origin, *occupancy);
+            ans[i][j] = calc_bishop_attacks(origin, *occupancy);
         }
     }
     ans
@@ -247,11 +259,97 @@ pub fn magic_tables() -> MagicTables {
     }
 }
 
+pub const fn rook_attacks_empty(origin: Square) -> BitBoard {
+    let magic = ROOK_SQUARE_MAGICS[origin.0 as usize];
+    BitBoard(ROOK_ATTACK_TABLE[magic.attack_table_start])
+}
+
+pub const fn rook_attacks(origin: Square, occupancy: BitBoard) -> BitBoard {
+    let magic = ROOK_SQUARE_MAGICS[origin.0 as usize];
+    BitBoard(
+        ROOK_ATTACK_TABLE[magic.attack_table_start
+            + ((occupancy.0 & magic.attack_mask.0).wrapping_mul(magic.magic_number) >> magic.shift)
+                as usize],
+    )
+}
+
+pub const fn bishop_attacks_empty(origin: Square) -> BitBoard {
+    let magic = BISHOP_SQUARE_MAGICS[origin.0 as usize];
+    BitBoard(BISHOP_ATTACK_TABLE[magic.attack_table_start])
+}
+
+pub const fn bishop_attacks(origin: Square, occupancy: BitBoard) -> BitBoard {
+    let magic = BISHOP_SQUARE_MAGICS[origin.0 as usize];
+    BitBoard(
+        BISHOP_ATTACK_TABLE[magic.attack_table_start
+            + ((occupancy.0 & magic.attack_mask.0).wrapping_mul(magic.magic_number) >> magic.shift)
+                as usize],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use crate::core::bitboard_constants::*;
     use crate::core::magic_bitboard::*;
-    use crate::core::square_constants::SQ_C1;
+    use crate::core::square_constants::*;
+    use lazy_static::lazy_static;
+    use std::io::{Error, Write};
+
+    lazy_static! {
+        pub static ref ROOK_TABLE: MagicTable = rook_magic_table();
+        pub static ref BISHOP_TABLE: MagicTable = bishop_magic_table();
+    }
+
+    #[test]
+    pub fn table_size() -> Result<(), Error> {
+        println!("Rook table size: {}", ROOK_TABLE.attack_table.len() * 8);
+        println!("Bishop table size: {}", BISHOP_TABLE.attack_table.len() * 8);
+
+        let mut f = std::fs::File::create("rook.rs").unwrap();
+
+        f.write(b"pub const BISHOP_SQUARE_MAGICS: [SquareMagic; 64] = [\n")?;
+        for i in 0..64 {
+            let sm = &BISHOP_TABLE.square_magics[i];
+            f.write_fmt(format_args!(
+                "SquareMagic::with({}, {}, {}, {}),\n",
+                sm.attack_table_start, sm.attack_mask.0, sm.magic_number, sm.shift,
+            ))?;
+        }
+        f.write(b"];\n")?;
+
+        f.write_fmt(format_args!(
+            "pub const BISHOP_ATTACK_TABLE: [u64; {}] = [",
+            BISHOP_TABLE.attack_table.len()
+        ))?;
+
+        for i in 0..BISHOP_TABLE.attack_table.len() {
+            let sm = &BISHOP_TABLE.attack_table[i];
+            f.write_fmt(format_args!("0x{:x},\n", sm.0))?;
+        }
+        f.write(b"];")?;
+
+        f.write(b"pub const ROOK_SQUARE_MAGICS: [SquareMagic; 64] = [\n")?;
+        for i in 0..64 {
+            let sm = &ROOK_TABLE.square_magics[i];
+            f.write_fmt(format_args!(
+                "SquareMagic::with({}, {}, {}, {}),\n",
+                sm.attack_table_start, sm.attack_mask.0, sm.magic_number, sm.shift,
+            ))?;
+        }
+        f.write(b"];\n")?;
+
+        f.write_fmt(format_args!(
+            "pub const ROOK_ATTACK_TABLE: [u64; {}] = [",
+            ROOK_TABLE.attack_table.len()
+        ))?;
+
+        for i in 0..ROOK_TABLE.attack_table.len() {
+            let sm = &ROOK_TABLE.attack_table[i];
+            f.write_fmt(format_args!("0x{:x},\n", sm.0))?;
+        }
+        f.write(b"];")?;
+        Ok(())
+    }
 
     #[test]
     pub fn shift_attacks_test() {
@@ -264,7 +362,7 @@ mod tests {
     pub fn rook_attacks_test1() {
         let origin = BB_D4;
         let occupancy = BB_D7 | BB_F4;
-        let attacks = rook_attacks(origin, occupancy);
+        let attacks = calc_rook_attacks(origin, occupancy);
         let expected = (FILE_D | RANK_4) - BB_D4 - BB_D8 - BB_G4 - BB_H4;
         assert_eq!(attacks, expected);
     }
@@ -273,7 +371,7 @@ mod tests {
     pub fn rook_attacks_test2() {
         let origin = BB_D4;
         let occupancy = BB_B4 | BB_D2;
-        let attacks = rook_attacks(origin, occupancy);
+        let attacks = calc_rook_attacks(origin, occupancy);
         let expected = (FILE_D | RANK_4) - BB_D4 - BB_D1 - BB_A4;
         assert_eq!(attacks, expected);
     }
@@ -282,7 +380,7 @@ mod tests {
     pub fn bishop_attaks_test() {
         let origin = BB_C1;
         let occupancy = RANK_2;
-        assert_eq!(bishop_attacks(origin, occupancy), BB_B2 | BB_D2);
+        assert_eq!(calc_bishop_attacks(origin, occupancy), BB_B2 | BB_D2);
         let bishop_magic = bishop_magic_table();
         assert_eq!(bishop_magic.attacks(SQ_C1, occupancy), BB_B2 | BB_D2);
     }
@@ -298,7 +396,7 @@ mod tests {
             let origin_bb = BitBoard::from_square(origin_sq);
             for occupancy in rook_occupancies[origin as usize].iter() {
                 let actual = rook_magic.attacks(origin_sq, *occupancy);
-                let expected = rook_attacks(origin_bb, *occupancy);
+                let expected = calc_rook_attacks(origin_bb, *occupancy);
                 assert_eq!(actual, expected);
             }
         }
@@ -315,7 +413,7 @@ mod tests {
             let origin_bb = BitBoard::from_square(origin_sq);
             for occupancy in occupancies[origin as usize].iter() {
                 let actual = bishop_magic.attacks(origin_sq, *occupancy);
-                let expected = bishop_attacks(origin_bb, *occupancy);
+                let expected = calc_bishop_attacks(origin_bb, *occupancy);
                 assert_eq!(actual, expected);
             }
         }

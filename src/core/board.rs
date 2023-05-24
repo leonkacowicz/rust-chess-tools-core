@@ -1,7 +1,7 @@
 use crate::core::bitboard::BitBoard;
 use crate::core::bitboard_attacks::*;
 use crate::core::bitboard_constants::*;
-use crate::core::magic_bitboard::MagicTables;
+use crate::core::magic_bitboard::*;
 use crate::core::r#move::Move;
 use crate::core::square::Square;
 use crate::core::square_constants::*;
@@ -321,9 +321,7 @@ impl Board {
     }
 
     #[inline]
-    pub fn under_check(&self, color: Color, magic_tables: &MagicTables) -> bool {
-        let rook_mt = &magic_tables.rook_table;
-        let bishop_mt = &magic_tables.bishop_table;
+    pub fn under_check(&self, color: Color) -> bool {
         let enemy_piece = self.piece_of_color[color.opposite()];
         let king = self.king_pos[color];
         let enemy_king = self.king_pos[color.opposite()];
@@ -339,10 +337,10 @@ impl Board {
         if king_attacks(king) * enemy_king {
             return true;
         }
-        if !(rook_mt.attacks(king, any_piece) & enemy_piece & rook_or_queen).empty() {
+        if !(rook_attacks(king, any_piece) & enemy_piece & rook_or_queen).empty() {
             return true;
         }
-        if !(bishop_mt.attacks(king, any_piece) & enemy_piece & bishop_or_queen).empty() {
+        if !(bishop_attacks(king, any_piece) & enemy_piece & bishop_or_queen).empty() {
             return true;
         }
         false
@@ -415,7 +413,6 @@ impl Display for Board {
 #[cfg(test)]
 mod tests {
     use crate::core::board::Board;
-    use crate::core::magic_bitboard::*;
     use crate::core::square_constants::*;
     use crate::core::Color::*;
     use crate::core::Piece::*;
@@ -427,15 +424,13 @@ mod tests {
 
     #[test]
     pub fn under_check_test_1() {
-        let mt = magic_tables();
         let board = Board::from_initial_position();
-        assert_eq!(board.under_check(WHITE, &mt), false);
-        assert_eq!(board.under_check(BLACK, &mt), false);
+        assert_eq!(board.under_check(WHITE), false);
+        assert_eq!(board.under_check(BLACK), false);
     }
 
     #[test]
     pub fn under_check_test_2() {
-        let mt = magic_tables();
         let mut board = Board::empty(SQ_F2, SQ_E7);
 
         board.put_piece_safe(ROOK, WHITE, SQ_D2).unwrap();
@@ -452,7 +447,7 @@ mod tests {
         board.put_piece_safe(PAWN, BLACK, SQ_H7).unwrap();
 
         println!("{}", board);
-        assert_eq!(board.under_check(WHITE, &mt), false);
-        assert_eq!(board.under_check(BLACK, &mt), false);
+        assert_eq!(board.under_check(WHITE), false);
+        assert_eq!(board.under_check(BLACK), false);
     }
 }

@@ -273,15 +273,9 @@ fn hash_update_normal(
 #[cfg(test)]
 mod tests {
     use crate::core::board::Board;
-    use crate::core::magic_bitboard::{magic_tables, MagicTables};
     use crate::core::move_generator::MoveGenerator;
     use crate::core::zobrist_hash::{hash, hash_update};
-    use lazy_static::lazy_static;
     use rand::{RngCore, SeedableRng};
-
-    lazy_static! {
-        static ref MAGIC_TABLES: MagicTables = magic_tables();
-    }
 
     #[test]
     pub fn test() {
@@ -290,7 +284,7 @@ mod tests {
             let mut board = Board::from_initial_position();
             let mut h = hash(&board);
             for _j in 0..300 {
-                let mut mg = MoveGenerator::new(&board, &MAGIC_TABLES);
+                let mut mg = MoveGenerator::new(&board);
                 mg.generate();
                 if mg.moves.len() == 0 {
                     break;
