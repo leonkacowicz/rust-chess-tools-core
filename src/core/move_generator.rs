@@ -100,16 +100,16 @@ impl MoveGenerator<'_> {
         &self.moves
     }
 
-    #[inline]
+    #[inline(always)]
     fn scan_board(&mut self) {
         let (rook_checkers, bishop_checkers) = self.update_checkers();
-        self.update_block_mask(rook_checkers);
-        self.update_block_mask(bishop_checkers);
-        self.update_pins(rook_attacks_empty(self.king_sq), self.rook_queen);
-        self.update_pins(bishop_attacks_empty(self.king_sq), self.bishop_queen);
+        self.block_mask |= self.update_block_mask(rook_checkers);
+        self.block_mask |= self.update_block_mask(bishop_checkers);
+        self.pinned |= self.update_pins(rook_attacks_empty(self.king_sq), self.rook_queen);
+        self.pinned |= self.update_pins(bishop_attacks_empty(self.king_sq), self.bishop_queen);
     }
 
-    #[inline]
+    #[inline(always)]
     fn update_checkers(&mut self) -> (BitBoard, BitBoard) {
         let b = self.board;
         let us = b.side_to_play;
@@ -127,23 +127,27 @@ impl MoveGenerator<'_> {
     }
 
     #[inline(always)]
-    fn update_block_mask(&mut self, checkers: BitBoard) {
+    fn update_block_mask(&self, checkers: BitBoard) -> BitBoard {
+        let mut block_mask = BitBoard::EMPTY;
         let mut remaining = checkers;
         while !remaining.empty() {
-            self.block_mask |= LINE_SEGMENT[self.king_sq][remaining.pop_lsb()];
+            block_mask |= LINE_SEGMENT[self.king_sq][remaining.pop_lsb()];
         }
+        block_mask
     }
 
     #[inline(always)]
-    fn update_pins(&mut self, ray: BitBoard, attackers: BitBoard) {
+    fn update_pins(&self, ray: BitBoard, attackers: BitBoard) -> BitBoard {
+        let mut pinned = BitBoard::EMPTY;
         let mut remaining = self.enemy_piece & attackers & ray;
         while !remaining.empty() {
             let square = remaining.pop_lsb();
             let path = ray & LINE_SEGMENT[self.king_sq][square] & self.any_piece;
             if path.num_squares() == 1 {
-                self.pinned |= path;
+                pinned |= path;
             }
         }
+        pinned
     }
 
     #[inline]
@@ -157,7 +161,7 @@ impl MoveGenerator<'_> {
             || bishop_attacks(sq, occupancy) * (self.bishop_queen)
     }
 
-    #[inline]
+    #[inline(always)]
     fn generate_king_moves(&mut self) {
         let mut attacks = king_attacks(self.king_sq) & self.our_piece_i;
         while !attacks.empty() {
@@ -168,7 +172,7 @@ impl MoveGenerator<'_> {
         }
     }
 
-    #[inline]
+    #[inline(never)]
     fn generate_non_king_moves(&mut self) {
         let mut remaining;
         let our_pieces = self.board.piece_of_color[self.us];
@@ -207,7 +211,7 @@ impl MoveGenerator<'_> {
         }
     }
 
-    #[inline]
+    // #[inline(never)]
     fn generate_castles(&mut self) {
         if self.us == WHITE {
             if self.board.can_castle_king_side[WHITE] {
@@ -228,7 +232,7 @@ impl MoveGenerator<'_> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn generate_castles_move(&mut self, path: BitBoard, sq1: Square, sq2: Square, m: Move) {
         if !self.any_piece.intersects(path) {
             if !self.square_attacked(sq1) && !self.square_attacked(sq2) {
@@ -250,6 +254,7 @@ impl MoveGenerator<'_> {
             self.moves.push(Move::new(piece, origin, attacks.pop_lsb()));
         }
     }
+
     fn generate_knight_moves(&mut self, origin: Square) {
         // this function assumes the knight is not pinned
         let mut attacks = knight_attacks(origin);
@@ -261,6 +266,7 @@ impl MoveGenerator<'_> {
             self.moves.push(Move::new(KNIGHT, origin, dest));
         }
     }
+
     fn generate_pawn_moves(&mut self, origin: Square, origin_bb: BitBoard) {
         let fwd_dir = self.us.fwd_dir();
         let dest = origin.shift(fwd_dir);
@@ -395,12 +401,14 @@ mod tests {
     #[test]
     pub fn perft_1() {
         let board = Board::from_initial_position();
-        assert_eq!(performance_test(&board, 1, true), 20);
-        assert_eq!(performance_test(&board, 2, true), 400);
-        assert_eq!(performance_test(&board, 3, true), 8902);
-        assert_eq!(performance_test(&board, 4, true), 197281);
-        assert_eq!(performance_test(&board, 5, true), 4865609);
-        assert_eq!(performance_test(&board, 6, true), 119060324);
+        for _i in 0..1 {
+            assert_eq!(performance_test(&board, 1, true), 20);
+            assert_eq!(performance_test(&board, 2, true), 400);
+            assert_eq!(performance_test(&board, 3, true), 8902);
+            assert_eq!(performance_test(&board, 4, true), 197281);
+            assert_eq!(performance_test(&board, 5, true), 4865609);
+            assert_eq!(performance_test(&board, 6, true), 119060324);
+        }
     }
 
     #[test]

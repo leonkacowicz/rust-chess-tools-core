@@ -12,17 +12,17 @@ impl BitBoard {
     pub const EMPTY: BitBoard = BitBoard(0);
     pub const FULL: BitBoard = BitBoard(0xFFFFFFFFFFFFFFFF);
 
-    #[inline]
+    #[inline(always)]
     pub const fn num_squares(self) -> u32 {
         self.0.count_ones()
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn intersects(self, other: BitBoard) -> bool {
         self.intersection(other).0 != 0
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn intersects2(self, other: BitBoard, other2: BitBoard) -> bool {
         self.intersection(other).intersection(other2).0 != 0
     }
@@ -112,6 +112,7 @@ impl Display for BitBoard {
 impl Not for BitBoard {
     type Output = Self;
 
+    #[inline(always)]
     fn not(self) -> Self::Output {
         BitBoard(!self.0)
     }
@@ -119,6 +120,7 @@ impl Not for BitBoard {
 impl ops::Mul for BitBoard {
     type Output = bool;
 
+    #[inline(always)]
     fn mul(self, rhs: Self) -> Self::Output {
         (self.0 & rhs.0) != 0
     }
@@ -127,6 +129,7 @@ impl ops::Mul for BitBoard {
 impl ops::Mul<Square> for BitBoard {
     type Output = bool;
 
+    #[inline(always)]
     fn mul(self, rhs: Square) -> Self::Output {
         self * BitBoard::from_square(rhs)
     }

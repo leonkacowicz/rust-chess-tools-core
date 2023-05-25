@@ -308,19 +308,21 @@ impl Board {
         self.half_move_counter = 0;
     }
 
+    #[inline(always)]
     pub const fn piece_of_color(&self, color: Color) -> BitBoard {
         self.piece_of_color[color as usize]
     }
 
+    #[inline(always)]
     pub const fn piece_of_opposite_color(&self, color: Color) -> BitBoard {
         self.piece_of_color[color.opposite() as usize]
     }
 
+    #[inline(always)]
     pub const fn piece_of_type(&self, piece: Piece) -> BitBoard {
         self.piece_of_type[piece as usize]
     }
 
-    #[inline]
     pub fn under_check(&self, color: Color) -> bool {
         let enemy_piece = self.piece_of_color[color.opposite()];
         let king = self.king_pos[color];
