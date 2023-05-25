@@ -47,6 +47,7 @@ pub struct MoveGenerator<'a> {
     enemy_piece: BitBoard,
     any_piece: BitBoard,
     block_mask: BitBoard,
+    checkers_block_mask: BitBoard,
     king: BitBoard,
     king_sq: Square,
     other_king: BitBoard,
@@ -69,6 +70,7 @@ impl MoveGenerator<'_> {
             enemy_piece,
             any_piece: our_piece | enemy_piece,
             block_mask: BitBoard::EMPTY,
+            checkers_block_mask: BitBoard::FULL,
             king: BitBoard::from_square(board.king_pos[board.side_to_play]),
             king_sq: board.king_pos[board.side_to_play],
             other_king: BitBoard::from_square(board.king_pos[board.side_to_play.opposite()]),
@@ -88,8 +90,10 @@ impl MoveGenerator<'_> {
             return &self.moves;
         } else if num_checkers == 1 {
             self.evasive = true;
+            self.checkers_block_mask = self.checkers | self.block_mask;
             self.generate_non_king_moves();
         } else {
+            self.block_mask = BitBoard::FULL;
             self.generate_non_king_moves();
             self.generate_castles();
         }
@@ -237,10 +241,7 @@ impl MoveGenerator<'_> {
     fn generate_slider_moves(&mut self, origin: Square, piece: Piece, attacks: BitBoard) {
         let mut attacks = attacks;
         attacks &= self.our_piece_i;
-        if self.evasive {
-            // remove squares that don't block the checker or capture it
-            attacks &= self.checkers | self.block_mask;
-        }
+        attacks &= self.checkers_block_mask;
         if self.pinned * origin {
             // if piece is pinned, it can only move away from or towards the king, but not any other direction
             attacks &= LINE[origin][self.king_sq];
@@ -254,10 +255,7 @@ impl MoveGenerator<'_> {
         let mut attacks = knight_attacks(origin);
 
         attacks &= self.our_piece_i;
-        if self.evasive {
-            attacks &= self.checkers | self.block_mask;
-        }
-
+        attacks &= self.checkers_block_mask;
         while !attacks.empty() {
             let dest = attacks.pop_lsb();
             self.moves.push(Move::new(KNIGHT, origin, dest));
@@ -276,12 +274,12 @@ impl MoveGenerator<'_> {
             // 2. Either:
             //      - it is not pinned
             //      - it is pinned but it is moving towards or away from the king in a line (will continue pinned)
-            if !self.evasive || self.block_mask * fwd {
+            if self.block_mask * fwd {
                 self.add_pawn_moves(origin, dest, is_promotion);
             }
             if first_move {
                 let fwd2 = fwd.shift(fwd_dir);
-                if !(fwd2 * self.any_piece) && (!self.evasive || self.block_mask * fwd2) {
+                if !(fwd2 * self.any_piece) && (self.block_mask * fwd2) {
                     self.moves
                         .push(Move::new(PAWN, origin, dest.shift(fwd_dir)))
                 }
